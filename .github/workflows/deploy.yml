@@ -27,31 +27,30 @@ jobs:
 
       - name: Deploy to AWS EC2
         env:
-           HOST: ${{ secrets.AWS_EC2_HOST }}
-           USER: ubuntu
-           KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+            HOST: ${{ secrets.AWS_EC2_HOST }}
+            USER: ubuntu
+            KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          
         run: |
-         echo "$KEY" > private_key.pem
-         run: |
-           echo "$KEY" > private_key.pem
-           chmod 600 private_key.pem
-
-           # Add EC2 to known hosts (Fixes "Host key verification failed" issue)
-           ssh-keyscan -H $HOST >> ~/.ssh/known_hosts
-
-           # Securely transfer files (excluding unnecessary ones)
-           scp -i private_key.pem -r $(ls -A | grep -Ev 'node_modules|.git|.github') $USER@$HOST:~/react-native-notes-app
-
-           # SSH into EC2 and restart the app
-           ssh -i private_key.pem $USER@$HOST << 'EOF'
-           cd ~/react-native-notes-app
-           npm install --legacy-peer-deps
+          echo "$KEY" > private_key.pem
+          chmod 600 private_key.pem
       
-           # Stop any existing process
-           pkill -f "node"
-
-           # Start the app in the background
-           nohup npm start > app.log 2>&1 &
-           echo "Deployment successful!"
-           EOF
+          # Ensure the .ssh directory exists before adding known hosts
+          mkdir -p ~/.ssh
+          ssh-keyscan -H $HOST >> ~/.ssh/known_hosts
       
+          # Securely transfer files (excluding unnecessary ones)
+          scp -i private_key.pem -r $(ls -A | grep -Ev 'node_modules|.git|.github') $USER@$HOST:~/react-native-notes-app
+      
+          # SSH into EC2 and restart the app
+          ssh -i private_key.pem $USER@$HOST << 'EOF'
+            cd ~/react-native-notes-app
+            npm install --legacy-peer-deps
+      
+            # Stop any existing process
+            pkill -f "node" || true
+      
+            # Start the app in the background
+            nohup npm start > app.log 2>&1 &
+            echo "Deployment successful!"
+          EOF
