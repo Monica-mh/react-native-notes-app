@@ -7,8 +7,8 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "eject": "expo eject"
-    "test":"echo \"No test specified\"&& exit 0"
+    "eject": "expo eject",
+    "test": "echo \"No test specified\" && exit 0"
   },
   "dependencies": {
     "@ouroboros/react-native-snackbar": "^0.1.4",
