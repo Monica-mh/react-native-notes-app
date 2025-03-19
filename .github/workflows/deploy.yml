@@ -25,26 +25,27 @@ jobs:
       - name: Run tests
         run: npm test
 
-      - name: Deploy to AWS EC2 using rsync
+      - name: Deploy to AWS EC2
         env:
           HOST: ${{ secrets.AWS_EC2_HOST }}
           USER: ubuntu
           KEY: ${{ secrets.SSH_PRIVATE_KEY }}
         run: |
-          # Set up SSH
-          mkdir -p ~/.ssh
-          echo "$KEY" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H $HOST >> ~/.ssh/known_hosts
-
-          # Use rsync to deploy only changed files
-          rsync -avz --exclude=".git" --exclude="node_modules" --exclude=".github" . $USER@$HOST:~/react-native-notes-app
-
+          echo "$KEY" > private_key.pem
+          chmod 600 private_key.pem
+          
+          # Securely transfer files (excluding unnecessary ones)
+          scp -i private_key.pem -r $(ls -A | grep -Ev 'node_modules|.git|.github') $USER@$HOST:~/react-native-notes-app
+          
           # SSH into EC2 and restart the app
-          ssh $USER@$HOST << 'EOF'
+          ssh -i private_key.pem $USER@$HOST << 'EOF'
             cd ~/react-native-notes-app
-            npm install
+            npm install --legacy-peer-deps
+            
+            # Stop any existing process
+            pkill -f "node"
+
+            # Start the app in the background
             nohup npm start > app.log 2>&1 &
             echo "Deployment successful!"
           EOF
-
