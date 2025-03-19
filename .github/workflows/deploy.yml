@@ -1,0 +1,36 @@
+name: Deploy React Native App to AWS EC2
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run tests
+        run: npm test
+
+      - name: Deploy to AWS EC2
+        env:
+          HOST: ${{ secrets.AWS_EC2_HOST }}
+          USER: ubuntu
+          KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          echo "$KEY" > private_key.pem
+          chmod 600 private_key.pem
+          scp -i private_key.pem -r * $USER@$HOST:~/react-native-notes-app
+          ssh -i private_key.pem $USER@$HOST "cd ~/react-native-notes-app && npm install && npm start"
