@@ -1,0 +1,146 @@
+Step 1: Fork the GitHub Repository
+1.	Navigate to the React Native Notes App repository (link provided in the test).
+2.	Click Fork to create a copy of the repository under your GitHub account.
+3.	Clone your forked repository:
+4.	git clone https://github.com/<your-github-username>/react-native-notes-app.git
+cd react-native-notes-app
+________________________________________
+Step 2: Set Up AWS Infrastructure (Terraform)
+2.1. Install Required Tools
+•	Terraform
+  sudo apt update && sudo apt install -y terraform
+Install AWS CLI in your local
+•	VS Code with Extensions:
+o	HashiCorp Terraform
+o	YAML
+o	PowerShell
+2.2. AWS Authentication
+1.	Create AWS IAM Credentials:
+o	Go to AWS Console → IAM → Security Credentials
+o	Create an Access Key & Secret Key
+2.	Configure AWS CLI:
+      aws configure
+Enter:
+o	Access Key ID
+o	Secret Access Key
+o	Region (e.g., ap-south-1)
+o	Output format: json
+2.3. Create Terraform Configuration (main.tf)
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+  }
+}
+
+provider "aws" {
+  region = "ap-south-1"
+}
+
+resource "aws_instance" "app_server" {
+  ami           = "ami-00bb6a80f01f03502" # Amazon Linux 2 AMI
+  instance_type = "t2.micro"
+  key_name      = "terra-new"
+  security_groups = ["default"]
+
+  tags = {
+    Name = "ReactNativeAppServer"
+  }
+}
+2.4. Deploy Infrastructure
+terraform init      # Initialize Terraform  
+terraform plan      # Preview the deployment  
+terraform apply -auto-approve  # Deploy infrastructure  
+📌 Note: Save the public IP of the EC2 instance.
+________________________________________
+Step 3: Configure the EC2 Instance
+3.1. SSH into the Instance
+ssh -i /path/to/terra-new.pem ubuntu@<EC2_PUBLIC_IP>
+3.2. Install Required Dependencies
+sudo apt update -y && sudo apt upgrade -y
+sudo apt install -y nodejs npm git
+Verify installations:
+node -v   # Verify Node.js  
+npm -v    # Verify npm  
+git --version  # Verify Git  
+3.3. Clone the Repository & Install Dependencies
+git clone https://github.com/<your-github-username>/react-native-notes-app.git
+cd react-native-notes-app
+npm install
+npm audit fix --force
+npm start
+📌 Note: If errors occur due to unsupported versions, use Expo Go for testing.
+________________________________________
+Step 4: Set Up CI/CD Pipeline (GitHub Actions)
+4.1. Create GitHub Actions Workflow (.github/workflows/deploy.yml)
+
+name: Deploy React Native App to AWS EC2
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps
+
+
+      - name: Run tests
+        run: npm test
+
+      - name: Deploy to AWS EC2
+        env:
+            HOST: ${{ secrets.AWS_EC2_HOST }}
+            USER: ubuntu
+            KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          
+        run: |
+          echo "$KEY" > private_key.pem
+          chmod 600 private_key.pem
+      
+          # Ensure the .ssh directory exists before adding known hosts
+          mkdir -p ~/.ssh
+          ssh-keyscan -H $HOST >> ~/.ssh/known_hosts
+      
+          # Securely transfer files (excluding unnecessary ones)
+          scp -i private_key.pem -r $(ls -A | grep -Ev 'node_modules|.git|.github') $USER@$HOST:~/react-native-notes-app
+      
+          # SSH into EC2 and restart the app
+          ssh -i private_key.pem $USER@$HOST << 'EOF'
+            cd ~/react-native-notes-app
+            npm install --legacy-peer-deps
+      
+            # Stop any existing process
+            pkill -f "node" || true
+      
+            # Start the app in the background
+            nohup npm start > app.log 2>&1 &
+            echo "Deployment successful!"
+          EOF
+
+4.2. Add GitHub Secrets
+Go to GitHub Repo → Settings → Secrets and Variables → Actions Add the following repository secrets:
+•	AWS_EC2_HOST → EC2 Public IP
+•	SSH_PRIVATE_KEY → EC2 SSH Private Key
+________________________________________
+Step 5: Verify Deployment
+1.	Trigger GitHub Actions Pipeline by pushing changes:
+git push origin main
+2.	If the pipeline fails, modify package.json to add a test script.
+3.	The React Native app should now be accessible via Expo Go.
+
